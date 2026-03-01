@@ -3,79 +3,67 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>Melo FPS Mobile</title>
+    <title>Melo FPS - Horizontal Force</title>
     <style>
-        /* Estilos base */
-        body { 
-            margin: 0; 
-            overflow: hidden; 
-            background: #000; 
-            touch-action: none; 
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        body { margin: 0; overflow: hidden; background: #000; touch-action: none; font-family: sans-serif; }
+        
+        /* Contenedor principal que rotaremos */
+        #game-container {
+            width: 100vw; height: 100vh;
+            position: relative; transition: transform 0.3s ease;
         }
 
-        /* Mira central */
+        /* ESTADO FORZADO (Horizontal en celular vertical) */
+        .force-landscape {
+            width: 100vh !important; height: 100vw !important;
+            transform: rotate(90deg);
+            transform-origin: top left;
+            position: absolute; top: 0; left: 100%;
+        }
+
+        /* Botón de Giro */
+        #rotate-btn {
+            position: absolute; top: 10px; right: 10px;
+            padding: 10px; background: rgba(0,255,0,0.3);
+            border: 1px solid #0f0; color: #0f0; border-radius: 5px;
+            z-index: 100; font-size: 12px; cursor: pointer;
+        }
+
         #crosshair {
             position: absolute; top: 50%; left: 50%;
-            width: 12px; height: 12px; border: 2px solid #00ff00;
-            border-radius: 50%; transform: translate(-50%, -50%); 
-            pointer-events: none; z-index: 10;
+            width: 10px; height: 10px; border: 2px solid #0f0;
+            border-radius: 50%; transform: translate(-50%, -50%); pointer-events: none;
         }
 
-        /* Joystick Izquierdo (Movimiento) */
         #joystick-container {
-            position: absolute; bottom: 30px; left: 50px;
-            width: 120px; height: 120px; 
-            background: rgba(255,255,255,0.1);
-            border: 2px solid rgba(255,255,255,0.2); 
-            border-radius: 50%;
-            z-index: 20;
+            position: absolute; bottom: 40px; left: 40px;
+            width: 100px; height: 100px; background: rgba(255,255,255,0.1);
+            border-radius: 50%; border: 1px solid rgba(255,255,255,0.3);
         }
         #joystick-knob {
-            position: absolute; top: 35px; left: 35px;
-            width: 50px; height: 50px; 
-            background: #ffffffaa; border-radius: 50%;
-            box-shadow: 0 0 10px rgba(0,0,0,0.5);
+            position: absolute; top: 30px; left: 30px;
+            width: 40px; height: 40px; background: #fff; border-radius: 50%;
         }
 
-        /* Botón de Disparo Derecho */
         #shoot-btn {
-            position: absolute; bottom: 40px; right: 60px;
-            width: 90px; height: 90px; 
-            background: rgba(255, 0, 0, 0.4);
-            border: 5px solid #ff0000; border-radius: 50%;
+            position: absolute; bottom: 50px; right: 50px;
+            width: 80px; height: 80px; background: rgba(255,0,0,0.5);
+            border: 3px solid #f00; border-radius: 50%;
             display: flex; align-items: center; justify-content: center;
             color: white; font-weight: bold; font-size: 14px;
-            z-index: 20;
-            -webkit-user-select: none;
-            user-select: none;
-        }
-        #shoot-btn:active { background: rgba(255, 0, 0, 0.8); transform: scale(0.95); }
-
-        /* Aviso de rotación */
-        @media screen and (orientation: portrait) {
-            #rotate-warning {
-                display: flex !important;
-            }
-        }
-        #rotate-warning {
-            display: none; position: fixed; top: 0; left: 0;
-            width: 100%; height: 100%; background: #111;
-            color: white; z-index: 100; flex-direction: column;
-            align-items: center; justify-content: center; text-align: center;
         }
     </style>
 </head>
 <body>
 
-    <div id="rotate-warning">
-        <h1>Gira tu celular</h1>
-        <p>Para jugar Melo FPS necesitas el modo horizontal.</p>
-    </div>
+    <div id="rotate-btn" onclick="toggleRotate()">GIRAR PANTALLA</div>
 
-    <div id="crosshair"></div>
-    <div id="joystick-container"><div id="joystick-knob"></div></div>
-    <div id="shoot-btn">FUEGO</div>
+    <div id="game-container">
+        <div id="crosshair"></div>
+        <div id="joystick-container"><div id="joystick-knob"></div></div>
+        <div id="shoot-btn">BANG</div>
+        <div id="threejs-canvas"></div>
+    </div>
 
     <script type="importmap">
         { "imports": { "three": "https://unpkg.com/three@0.160.0/build/three.module.js" } }
@@ -84,150 +72,102 @@
     <script type="module">
         import * as THREE from 'three';
 
-        // --- 1. CONFIGURACIÓN DEL MOTOR ---
+        const container = document.getElementById('game-container');
+        let isForced = false;
+
+        // --- MOTOR 3D ---
         const scene = new THREE.Scene();
-        scene.background = new THREE.Color(0x050505);
+        scene.background = new THREE.Color(0x111111);
         const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
         const renderer = new THREE.WebGLRenderer({ antialias: true });
         renderer.setSize(window.innerWidth, window.innerHeight);
-        renderer.setPixelRatio(window.devicePixelRatio);
-        document.body.appendChild(renderer.domElement);
+        document.getElementById('threejs-canvas').appendChild(renderer.domElement);
 
-        // Iluminación
-        const sun = new THREE.DirectionalLight(0xffffff, 1);
-        sun.position.set(10, 20, 10);
-        scene.add(sun, new THREE.AmbientLight(0x404040));
+        scene.add(new THREE.GridHelper(100, 40, 0x444444, 0x222222));
+        scene.add(new THREE.AmbientLight(0xffffff, 0.8));
 
-        // Suelo estilo "Cyber"
-        const grid = new THREE.GridHelper(200, 40, 0xff0000, 0x222222);
-        scene.add(grid);
-
-        // Enemigos (Cubos)
+        // Cubos enemigos
         const enemies = [];
-        const enemyGeo = new THREE.BoxGeometry(2, 5, 2);
-        for(let i=0; i<20; i++) {
-            const mat = new THREE.MeshPhongMaterial({ color: 0xff0000, emissive: 0x330000 });
-            const enemy = new THREE.Mesh(enemyGeo, mat);
-            enemy.position.set(Math.random()*100-50, 2.5, Math.random()*100-50);
-            scene.add(enemy);
-            enemies.push(enemy);
+        for(let i=0; i<15; i++){
+            const enemy = new THREE.Mesh(new THREE.BoxGeometry(2,4,2), new THREE.MeshPhongMaterial({color: 0xff0000}));
+            enemy.position.set(Math.random()*60-30, 2, Math.random()*60-30);
+            scene.add(enemy); enemies.push(enemy);
         }
 
-        camera.position.y = 1.8;
+        camera.position.y = 1.7;
 
-        // --- 2. SISTEMA DE DISPARO ---
-        const bullets = [];
-        const bulletGeo = new THREE.SphereGeometry(0.15, 8, 8);
-        const bulletMat = new THREE.MeshBasicMaterial({ color: 0x00ffff });
-
-        function shoot() {
-            const b = new THREE.Mesh(bulletGeo, bulletMat);
-            b.position.copy(camera.position);
-            const dir = new THREE.Vector3();
-            camera.getWorldDirection(dir);
-            b.velocity = dir.multiplyScalar(1.5);
-            scene.add(b);
-            bullets.push(b);
+        // --- SISTEMA DE GIRO ---
+        window.toggleRotate = function() {
+            isForced = !isForced;
+            if(isForced) {
+                container.classList.add('force-landscape');
+                renderer.setSize(window.innerHeight, window.innerWidth);
+                camera.aspect = window.innerHeight / window.innerWidth;
+            } else {
+                container.classList.remove('force-landscape');
+                renderer.setSize(window.innerWidth, window.innerHeight);
+                camera.aspect = window.innerWidth / window.innerHeight;
+            }
+            camera.updateProjectionMatrix();
         }
 
-        // --- 3. CONTROLES TÁCTILES MÓVILES ---
+        // --- CONTROLES ---
         let moveX = 0, moveY = 0;
-        let lastLookX = null, lastLookY = null;
+        let lastX, lastY;
 
-        // Evento disparo
         document.getElementById('shoot-btn').addEventListener('touchstart', (e) => {
-            e.preventDefault();
-            shoot();
+            e.stopPropagation();
+            // Lógica de disparo (simple raycast para borrar enemigos frente a la cámara)
+            const raycaster = new THREE.Raycaster();
+            const direction = new THREE.Vector3();
+            camera.getWorldDirection(direction);
+            raycaster.set(camera.position, direction);
+            
+            const intersects = raycaster.intersectObjects(enemies);
+            if (intersects.length > 0) {
+                const target = intersects[0].object;
+                scene.remove(target);
+                enemies.splice(enemies.indexOf(target), 1);
+            }
         });
 
         window.addEventListener('touchmove', (e) => {
             e.preventDefault();
-            for (let t of e.touches) {
-                // LADO IZQUIERDO: JOYSTICK
-                if (t.clientX < window.innerWidth / 2) {
-                    const container = document.getElementById('joystick-container').getBoundingClientRect();
-                    const centerX = container.left + 60;
-                    const centerY = container.top + 60;
-                    
-                    const dx = t.clientX - centerX;
-                    const dy = t.clientY - centerY;
-                    const dist = Math.min(Math.sqrt(dx*dx + dy*dy), 45);
-                    const angle = Math.atan2(dy, dx);
-                    
-                    moveX = Math.cos(angle) * (dist/45);
-                    moveY = Math.sin(angle) * (dist/45);
-                    
-                    document.getElementById('joystick-knob').style.transform = 
-                        `translate(${Math.cos(angle)*dist}px, ${Math.sin(angle)*dist}px)`;
-                } 
-                // LADO DERECHO: MIRAR
-                else {
-                    if (lastLookX !== null) {
-                        const deltaX = t.clientX - lastLookX;
-                        const deltaY = t.clientY - lastLookY;
-                        camera.rotation.y -= deltaX * 0.006;
-                        camera.rotation.x -= deltaY * 0.006;
-                        // Limitar rotación arriba/abajo
-                        camera.rotation.x = Math.max(-Math.PI/2, Math.min(Math.PI/2, camera.rotation.x));
-                    }
-                    lastLookX = t.clientX;
-                    lastLookY = t.clientY;
+            const touch = e.touches[0];
+            
+            // Lógica ajustada si está rotado
+            let clientX = isForced ? touch.clientY : touch.clientX;
+            let clientY = isForced ? (window.innerHeight - touch.clientX) : touch.clientY;
+
+            if (clientX < (isForced ? window.innerHeight : window.innerWidth) / 2) {
+                // Movimiento
+                const rect = document.getElementById('joystick-container').getBoundingClientRect();
+                moveX = (clientX - (rect.left + 50)) / 50;
+                moveY = (clientY - (rect.top + 50)) / 50;
+                document.getElementById('joystick-knob').style.transform = `translate(${moveX*30}px, ${moveY*30}px)`;
+            } else {
+                // Cámara
+                if (lastX) {
+                    camera.rotation.y -= (clientX - lastX) * 0.005;
+                    camera.rotation.x -= (clientY - lastY) * 0.005;
                 }
+                lastX = clientX; lastY = clientY;
             }
         }, {passive: false});
 
-        window.addEventListener('touchend', (e) => {
-            if (e.touches.length === 0) {
-                moveX = 0; moveY = 0;
-                lastLookX = null; lastLookY = null;
-                document.getElementById('joystick-knob').style.transform = `translate(0px, 0px)`;
-            }
+        window.addEventListener('touchend', () => {
+            moveX = 0; moveY = 0; lastX = null;
+            document.getElementById('joystick-knob').style.transform = `translate(0px, 0px)`;
         });
 
-        // --- 4. BUCLE DE JUEGO (GAME LOOP) ---
-        function update() {
-            requestAnimationFrame(update);
-
-            // Movimiento basado en cámara
-            camera.translateX(moveX * 0.2);
-            camera.translateZ(moveY * 0.2);
-            camera.position.y = 1.8;
-
-            // Lógica de balas y colisiones
-            for (let i = bullets.length - 1; i >= 0; i--) {
-                const b = bullets[i];
-                b.position.add(b.velocity);
-
-                // Colisión simple por distancia
-                for (let j = enemies.length - 1; j >= 0; j--) {
-                    const e = enemies[j];
-                    if (b.position.distanceTo(e.position) < 2.5) {
-                        scene.remove(e);
-                        enemies.splice(j, 1);
-                        scene.remove(b);
-                        bullets.splice(i, 1);
-                        break;
-                    }
-                }
-
-                // Borrar balas lejanas
-                if (b && b.position.length() > 150) {
-                    scene.remove(b);
-                    bullets.splice(i, 1);
-                }
-            }
-
+        function animate() {
+            requestAnimationFrame(animate);
+            camera.translateX(moveX * 0.1);
+            camera.translateZ(moveY * 0.1);
+            camera.position.y = 1.7;
             renderer.render(scene, camera);
         }
-
-        // Manejo de cambio de tamaño (Resize)
-        window.addEventListener('resize', () => {
-            camera.aspect = window.innerWidth / window.innerHeight;
-            camera.updateProjectionMatrix();
-            renderer.setSize(window.innerWidth, window.innerHeight);
-        });
-
-        update();
+        animate();
     </script>
 </body>
 </html>
