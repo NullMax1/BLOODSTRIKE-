@@ -2,39 +2,80 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Melo Mobile FPS - V2</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>Melo FPS Mobile</title>
     <style>
-        body { margin: 0; overflow: hidden; background: #000; touch-action: none; font-family: sans-serif; }
+        /* Estilos base */
+        body { 
+            margin: 0; 
+            overflow: hidden; 
+            background: #000; 
+            touch-action: none; 
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+
+        /* Mira central */
         #crosshair {
             position: absolute; top: 50%; left: 50%;
-            width: 10px; height: 10px; border: 2px solid #0f0;
-            border-radius: 50%; transform: translate(-50%, -50%); pointer-events: none;
+            width: 12px; height: 12px; border: 2px solid #00ff00;
+            border-radius: 50%; transform: translate(-50%, -50%); 
+            pointer-events: none; z-index: 10;
         }
-        /* Joystick */
+
+        /* Joystick Izquierdo (Movimiento) */
         #joystick-container {
-            position: absolute; bottom: 40px; left: 40px;
-            width: 100px; height: 100px; background: rgba(255,255,255,0.1);
-            border: 2px solid rgba(255,255,255,0.3); border-radius: 50%;
+            position: absolute; bottom: 30px; left: 50px;
+            width: 120px; height: 120px; 
+            background: rgba(255,255,255,0.1);
+            border: 2px solid rgba(255,255,255,0.2); 
+            border-radius: 50%;
+            z-index: 20;
         }
         #joystick-knob {
-            position: absolute; top: 30px; left: 30px;
-            width: 40px; height: 40px; background: #fff; border-radius: 50%;
+            position: absolute; top: 35px; left: 35px;
+            width: 50px; height: 50px; 
+            background: #ffffffaa; border-radius: 50%;
+            box-shadow: 0 0 10px rgba(0,0,0,0.5);
         }
-        /* Botón de Disparo */
+
+        /* Botón de Disparo Derecho */
         #shoot-btn {
-            position: absolute; bottom: 60px; right: 40px;
-            width: 80px; height: 80px; background: rgba(255,0,0,0.5);
-            border: 4px solid #f00; border-radius: 50%;
+            position: absolute; bottom: 40px; right: 60px;
+            width: 90px; height: 90px; 
+            background: rgba(255, 0, 0, 0.4);
+            border: 5px solid #ff0000; border-radius: 50%;
             display: flex; align-items: center; justify-content: center;
-            color: white; font-weight: bold; font-size: 12px;
+            color: white; font-weight: bold; font-size: 14px;
+            z-index: 20;
+            -webkit-user-select: none;
+            user-select: none;
+        }
+        #shoot-btn:active { background: rgba(255, 0, 0, 0.8); transform: scale(0.95); }
+
+        /* Aviso de rotación */
+        @media screen and (orientation: portrait) {
+            #rotate-warning {
+                display: flex !important;
+            }
+        }
+        #rotate-warning {
+            display: none; position: fixed; top: 0; left: 0;
+            width: 100%; height: 100%; background: #111;
+            color: white; z-index: 100; flex-direction: column;
+            align-items: center; justify-content: center; text-align: center;
         }
     </style>
 </head>
 <body>
+
+    <div id="rotate-warning">
+        <h1>Gira tu celular</h1>
+        <p>Para jugar Melo FPS necesitas el modo horizontal.</p>
+    </div>
+
     <div id="crosshair"></div>
     <div id="joystick-container"><div id="joystick-knob"></div></div>
-    <div id="shoot-btn">BANG</div>
+    <div id="shoot-btn">FUEGO</div>
 
     <script type="importmap">
         { "imports": { "three": "https://unpkg.com/three@0.160.0/build/three.module.js" } }
@@ -43,128 +84,150 @@
     <script type="module">
         import * as THREE from 'three';
 
-        // --- ESCENA Y CÁMARA ---
+        // --- 1. CONFIGURACIÓN DEL MOTOR ---
         const scene = new THREE.Scene();
-        scene.background = new THREE.Color(0x111111);
-        const camera = new THREE.PerspectiveCamera(75, window.innerWidth/window.innerHeight, 0.1, 1000);
+        scene.background = new THREE.Color(0x050505);
+        const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
         const renderer = new THREE.WebGLRenderer({ antialias: true });
         renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setPixelRatio(window.devicePixelRatio);
         document.body.appendChild(renderer.domElement);
 
-        const light = new THREE.DirectionalLight(0xffffff, 1);
-        light.position.set(5, 10, 7);
-        scene.add(light, new THREE.AmbientLight(0x404040));
+        // Iluminación
+        const sun = new THREE.DirectionalLight(0xffffff, 1);
+        sun.position.set(10, 20, 10);
+        scene.add(sun, new THREE.AmbientLight(0x404040));
 
-        // Suelo
-        scene.add(new THREE.GridHelper(200, 50, 0x444444, 0x222222));
+        // Suelo estilo "Cyber"
+        const grid = new THREE.GridHelper(200, 40, 0xff0000, 0x222222);
+        scene.add(grid);
 
-        // Enemigos (Cubos Rojos)
+        // Enemigos (Cubos)
         const enemies = [];
-        const enemyGeo = new THREE.BoxGeometry(2, 4, 2);
-        const enemyMat = new THREE.MeshPhongMaterial({ color: 0xff0000 });
-        for(let i=0; i<15; i++) {
-            const enemy = new THREE.Mesh(enemyGeo, enemyMat);
-            enemy.position.set(Math.random()*80-40, 2, Math.random()*80-40);
+        const enemyGeo = new THREE.BoxGeometry(2, 5, 2);
+        for(let i=0; i<20; i++) {
+            const mat = new THREE.MeshPhongMaterial({ color: 0xff0000, emissive: 0x330000 });
+            const enemy = new THREE.Mesh(enemyGeo, mat);
+            enemy.position.set(Math.random()*100-50, 2.5, Math.random()*100-50);
             scene.add(enemy);
             enemies.push(enemy);
         }
 
-        camera.position.y = 1.7;
+        camera.position.y = 1.8;
 
-        // --- SISTEMA DE BALAS ---
+        // --- 2. SISTEMA DE DISPARO ---
         const bullets = [];
-        const bulletGeo = new THREE.SphereGeometry(0.1, 8, 8);
-        const bulletMat = new THREE.MeshBasicMaterial({ color: 0xffff00 });
+        const bulletGeo = new THREE.SphereGeometry(0.15, 8, 8);
+        const bulletMat = new THREE.MeshBasicMaterial({ color: 0x00ffff });
 
         function shoot() {
-            const bullet = new THREE.Mesh(bulletGeo, bulletMat);
-            bullet.position.copy(camera.position);
-            
-            // Dirección hacia donde mira la cámara
-            const direction = new THREE.Vector3();
-            camera.getWorldDirection(direction);
-            bullet.velocity = direction.multiplyScalar(1.2);
-            
-            scene.add(bullet);
-            bullets.push(bullet);
+            const b = new THREE.Mesh(bulletGeo, bulletMat);
+            b.position.copy(camera.position);
+            const dir = new THREE.Vector3();
+            camera.getWorldDirection(dir);
+            b.velocity = dir.multiplyScalar(1.5);
+            scene.add(b);
+            bullets.push(b);
         }
 
-        // --- CONTROLES MÓVILES ---
+        // --- 3. CONTROLES TÁCTILES MÓVILES ---
         let moveX = 0, moveY = 0;
-        let lastTouchX, lastTouchY;
+        let lastLookX = null, lastLookY = null;
 
+        // Evento disparo
         document.getElementById('shoot-btn').addEventListener('touchstart', (e) => {
-            e.stopPropagation();
+            e.preventDefault();
             shoot();
         });
 
         window.addEventListener('touchmove', (e) => {
             e.preventDefault();
             for (let t of e.touches) {
-                // Movimiento (Joystick)
+                // LADO IZQUIERDO: JOYSTICK
                 if (t.clientX < window.innerWidth / 2) {
-                    const rect = document.getElementById('joystick-container').getBoundingClientRect();
-                    const dx = t.clientX - (rect.left + 50);
-                    const dy = t.clientY - (rect.top + 50);
-                    const dist = Math.min(Math.sqrt(dx*dx + dy*dy), 40);
+                    const container = document.getElementById('joystick-container').getBoundingClientRect();
+                    const centerX = container.left + 60;
+                    const centerY = container.top + 60;
+                    
+                    const dx = t.clientX - centerX;
+                    const dy = t.clientY - centerY;
+                    const dist = Math.min(Math.sqrt(dx*dx + dy*dy), 45);
                     const angle = Math.atan2(dy, dx);
                     
-                    moveX = Math.cos(angle) * (dist/40);
-                    moveY = Math.sin(angle) * (dist/40);
-                    document.getElementById('joystick-knob').style.transform = `translate(${moveX*40}px, ${moveY*40}px)`;
+                    moveX = Math.cos(angle) * (dist/45);
+                    moveY = Math.sin(angle) * (dist/45);
+                    
+                    document.getElementById('joystick-knob').style.transform = 
+                        `translate(${Math.cos(angle)*dist}px, ${Math.sin(angle)*dist}px)`;
                 } 
-                // Cámara (Derecha)
+                // LADO DERECHO: MIRAR
                 else {
-                    if (lastTouchX) {
-                        camera.rotation.y -= (t.clientX - lastTouchX) * 0.005;
-                        camera.rotation.x -= (t.clientY - lastTouchY) * 0.005;
+                    if (lastLookX !== null) {
+                        const deltaX = t.clientX - lastLookX;
+                        const deltaY = t.clientY - lastLookY;
+                        camera.rotation.y -= deltaX * 0.006;
+                        camera.rotation.x -= deltaY * 0.006;
+                        // Limitar rotación arriba/abajo
+                        camera.rotation.x = Math.max(-Math.PI/2, Math.min(Math.PI/2, camera.rotation.x));
                     }
-                    lastTouchX = t.clientX;
-                    lastTouchY = t.clientY;
+                    lastLookX = t.clientX;
+                    lastLookY = t.clientY;
                 }
             }
         }, {passive: false});
 
-        window.addEventListener('touchend', () => {
-            moveX = 0; moveY = 0;
-            lastTouchX = null; lastTouchY = null;
-            document.getElementById('joystick-knob').style.transform = `translate(0px, 0px)`;
+        window.addEventListener('touchend', (e) => {
+            if (e.touches.length === 0) {
+                moveX = 0; moveY = 0;
+                lastLookX = null; lastLookY = null;
+                document.getElementById('joystick-knob').style.transform = `translate(0px, 0px)`;
+            }
         });
 
-        // --- BUCLE PRINCIPAL ---
+        // --- 4. BUCLE DE JUEGO (GAME LOOP) ---
         function update() {
             requestAnimationFrame(update);
 
-            // Mover cámara
-            camera.translateX(moveX * 0.15);
-            camera.translateZ(moveY * 0.15);
-            camera.position.y = 1.7;
+            // Movimiento basado en cámara
+            camera.translateX(moveX * 0.2);
+            camera.translateZ(moveY * 0.2);
+            camera.position.y = 1.8;
 
-            // Actualizar Balas
-            bullets.forEach((b, index) => {
+            // Lógica de balas y colisiones
+            for (let i = bullets.length - 1; i >= 0; i--) {
+                const b = bullets[i];
                 b.position.add(b.velocity);
-                
-                // Colisión con enemigos
-                enemies.forEach((e, eIndex) => {
-                    if (b.position.distanceTo(e.position) < 2) {
-                        scene.remove(e);
-                        enemies.splice(eIndex, 1);
-                        scene.remove(b);
-                        bullets.splice(index, 1);
-                    }
-                });
 
-                // Limpiar balas lejos
-                if(b.position.length() > 200) {
-                    scene.remove(b);
-                    bullets.splice(index, 1);
+                // Colisión simple por distancia
+                for (let j = enemies.length - 1; j >= 0; j--) {
+                    const e = enemies[j];
+                    if (b.position.distanceTo(e.position) < 2.5) {
+                        scene.remove(e);
+                        enemies.splice(j, 1);
+                        scene.remove(b);
+                        bullets.splice(i, 1);
+                        break;
+                    }
                 }
-            });
+
+                // Borrar balas lejanas
+                if (b && b.position.length() > 150) {
+                    scene.remove(b);
+                    bullets.splice(i, 1);
+                }
+            }
 
             renderer.render(scene, camera);
         }
+
+        // Manejo de cambio de tamaño (Resize)
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+
         update();
     </script>
 </body>
 </html>
-
