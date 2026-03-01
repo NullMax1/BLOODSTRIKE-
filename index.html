@@ -3,62 +3,80 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>Melo FPS - Horizontal Force</title>
+    <title>Melo FPS - Corregido con Menú</title>
     <style>
-        body { margin: 0; overflow: hidden; background: #000; touch-action: none; font-family: sans-serif; }
+        /* Estilos Base y UI */
+        body { margin: 0; overflow: hidden; background: #000; touch-action: none; font-family: 'Segoe UI', sans-serif; color: white; }
         
-        /* Contenedor principal que rotaremos */
-        #game-container {
-            width: 100vw; height: 100vh;
-            position: relative; transition: transform 0.3s ease;
-        }
+        /* Contenedor del Juego (Oculto al inicio) */
+        #game-area { display: none; width: 100vw; height: 100vh; position: relative; }
 
-        /* ESTADO FORZADO (Horizontal en celular vertical) */
-        .force-landscape {
-            width: 100vh !important; height: 100vw !important;
-            transform: rotate(90deg);
-            transform-origin: top left;
-            position: absolute; top: 0; left: 100%;
+        /* Pantalla de Menú de Inicio */
+        #menu-screen {
+            width: 100vw; height: 100vh; background: radial-gradient(circle, #1a1a1a 0%, #000 100%);
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            position: absolute; top: 0; left: 0; z-index: 500; transition: opacity 0.5s;
         }
-
-        /* Botón de Giro */
-        #rotate-btn {
-            position: absolute; top: 10px; right: 10px;
-            padding: 10px; background: rgba(0,255,0,0.3);
-            border: 1px solid #0f0; color: #0f0; border-radius: 5px;
-            z-index: 100; font-size: 12px; cursor: pointer;
+        #menu-screen h1 { font-size: 48px; color: #0f0; text-shadow: 0 0 10px #0f0; margin-bottom: 10px; }
+        #menu-screen p { font-size: 16px; color: #aaa; margin-bottom: 40px; }
+        #play-btn {
+            padding: 15px 40px; font-size: 20px; background: #f00; color: white; border: none;
+            border-radius: 5px; cursor: pointer; box-shadow: 0 0 15px rgba(255,0,0,0.5); transition: 0.2s;
         }
+        #play-btn:active { transform: scale(0.95); background: #b00; }
 
+        /* Controles In-Game */
         #crosshair {
             position: absolute; top: 50%; left: 50%;
             width: 10px; height: 10px; border: 2px solid #0f0;
-            border-radius: 50%; transform: translate(-50%, -50%); pointer-events: none;
+            border-radius: 50%; transform: translate(-50%, -50%); pointer-events: none; z-index: 10;
         }
-
         #joystick-container {
-            position: absolute; bottom: 40px; left: 40px;
-            width: 100px; height: 100px; background: rgba(255,255,255,0.1);
-            border-radius: 50%; border: 1px solid rgba(255,255,255,0.3);
+            position: absolute; bottom: 30px; left: 40px;
+            width: 110px; height: 110px; background: rgba(255,255,255,0.1);
+            border: 2px solid rgba(255,255,255,0.2); border-radius: 50%; z-index: 20;
         }
         #joystick-knob {
-            position: absolute; top: 30px; left: 30px;
-            width: 40px; height: 40px; background: #fff; border-radius: 50%;
+            position: absolute; top: 32px; left: 32px;
+            width: 45px; height: 45px; background: #fff; border-radius: 50%;
+            box-shadow: 0 0 10px rgba(0,0,0,0.5);
+        }
+        #shoot-btn {
+            position: absolute; bottom: 40px; right: 50px;
+            width: 85px; height: 85px; background: rgba(255, 0, 0, 0.4);
+            border: 4px solid #f00; border-radius: 50%;
+            display: flex; align-items: center; justify-content: center;
+            color: white; font-weight: bold; font-size: 14px; z-index: 20;
+        }
+        #shoot-btn:active { background: rgba(255, 0, 0, 0.8); }
+
+        /* Botón de Giro Forzado (para WebView) */
+        #rotate-btn {
+            position: absolute; top: 10px; right: 10px;
+            padding: 8px 15px; background: rgba(0,255,0,0.2);
+            border: 1px solid #0f0; color: #0f0; border-radius: 5px;
+            z-index: 100; font-size: 11px;
         }
 
-        #shoot-btn {
-            position: absolute; bottom: 50px; right: 50px;
-            width: 80px; height: 80px; background: rgba(255,0,0,0.5);
-            border: 3px solid #f00; border-radius: 50%;
-            display: flex; align-items: center; justify-content: center;
-            color: white; font-weight: bold; font-size: 14px;
+        /* Estilos para el estado Rotado (CSS Virtual Rotation) */
+        .force-landscape {
+            width: 100vh !important; height: 100vw !important;
+            transform: rotate(90deg); transform-origin: top left;
+            position: absolute; top: 0; left: 100%;
         }
     </style>
 </head>
 <body>
 
-    <div id="rotate-btn" onclick="toggleRotate()">GIRAR PANTALLA</div>
+    <div id="menu-screen">
+        <h1>MELO FPS</h1>
+        <p>BloodStrike Web Edition</p>
+        <button id="play-btn">JUGAR</button>
+    </div>
 
-    <div id="game-container">
+    <div id="rotate-btn" onclick="toggleRotate()">GIRAR VISTA (WEBVIEW)</div>
+    
+    <div id="game-area">
         <div id="crosshair"></div>
         <div id="joystick-container"><div id="joystick-knob"></div></div>
         <div id="shoot-btn">BANG</div>
@@ -72,41 +90,208 @@
     <script type="module">
         import * as THREE from 'three';
 
-        const container = document.getElementById('game-container');
-        let isForced = false;
+        // --- REFERENCIAS HTML ---
+        const menuScreen = document.getElementById('menu-screen');
+        const gameArea = document.getElementById('game-area');
+        const playBtn = document.getElementById('play-btn');
+        const joystickKnob = document.getElementById('joystick-knob');
+        const joystickContainer = document.getElementById('joystick-container');
+        const canvasContainer = document.getElementById('threejs-canvas');
 
-        // --- MOTOR 3D ---
+        // --- VARIABLES DE ESTADO ---
+        let isGameStarted = false;
+        let isForcedLandscape = false;
+        
+        // Controles de cámara
+        let euler = new THREE.Euler(0, 0, 0, 'YXZ'); // Importante: orden YXZ para FPS
+        let lookSensitivity = 0.005;
+        // LÍMITES DE CÁMARA (en Radianes)
+        const minPolarAngle = 0.5; // Límite arriba (aprox 30 grados)
+        const maxPolarAngle = Math.PI - 0.5; // Límite abajo (aprox 150 grados)
+        const maxYawAngle = 1.0; // Límite lados (aprox 60 grados izq/der)
+
+        // Movimiento
+        let moveVec = { x: 0, y: 0 }; // Velocidad del joystick
+
+        // --- CONFIGURACIÓN THREE.JS BASICA ---
         const scene = new THREE.Scene();
         scene.background = new THREE.Color(0x111111);
         const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
         const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setPixelRatio(window.devicePixelRatio);
         renderer.setSize(window.innerWidth, window.innerHeight);
-        document.getElementById('threejs-canvas').appendChild(renderer.domElement);
+        canvasContainer.appendChild(renderer.domElement);
 
-        scene.add(new THREE.GridHelper(100, 40, 0x444444, 0x222222));
+        // Luces y Escena
+        scene.add(new THREE.GridHelper(200, 60, 0x444444, 0x222222));
         scene.add(new THREE.AmbientLight(0xffffff, 0.8));
 
-        // Cubos enemigos
+        // Enemigos (Cubos Rojos)
         const enemies = [];
-        for(let i=0; i<15; i++){
-            const enemy = new THREE.Mesh(new THREE.BoxGeometry(2,4,2), new THREE.MeshPhongMaterial({color: 0xff0000}));
-            enemy.position.set(Math.random()*60-30, 2, Math.random()*60-30);
+        for(let i=0; i<20; i++){
+            const enemy = new THREE.Mesh(new THREE.BoxGeometry(2,5,2), new THREE.MeshPhongMaterial({color: 0xff0000}));
+            enemy.position.set(Math.random()*100-50, 2.5, Math.random()*100-50);
             scene.add(enemy); enemies.push(enemy);
         }
 
-        camera.position.y = 1.7;
+        camera.position.y = 1.8; // Altura de los ojos
 
-        // --- SISTEMA DE GIRO ---
+        // --- LÓGICA DE JUGAR (ENTRADA CON ANIMACIÓN) ---
+        playBtn.addEventListener('click', () => {
+            if(isGameStarted) return;
+            isGameStarted = true;
+            
+            // 1. Ocultar Menú (CSS Fade out)
+            menuScreen.style.opacity = '0';
+            
+            // 2. Mostrar Área de Juego
+            gameArea.style.display = 'block';
+
+            // 3. Pequeña animación de entrada (cámara baja un poco)
+            camera.position.y = 10; // Empezamos arriba
+            new Promise(resolve => setTimeout(resolve, 500)).then(() => {
+                menuScreen.style.display = 'none'; // Quitar menú del DOM
+                // La animación nativa la hacemos en el game loop
+            });
+        });
+
+        // --- SISTEMA DE GIRO (WEBVIEW CSS ROTATION) ---
         window.toggleRotate = function() {
-            isForced = !isForced;
-            if(isForced) {
-                container.classList.add('force-landscape');
-                renderer.setSize(window.innerHeight, window.innerWidth);
-                camera.aspect = window.innerHeight / window.innerWidth;
+            isForcedLandscape = !isForcedLandscape;
+            const width = window.innerWidth;
+            const height = window.innerHeight;
+
+            if(isForcedLandscape) {
+                gameArea.classList.add('force-landscape');
+                joystickContainer.style.bottom = 'auto'; joystickContainer.style.top = '40px'; // Ajustar UI
+                renderer.setSize(height, width);
+                camera.aspect = height / width;
             } else {
-                container.classList.remove('force-landscape');
-                renderer.setSize(window.innerWidth, window.innerHeight);
-                camera.aspect = window.innerWidth / window.innerHeight;
+                gameArea.classList.remove('force-landscape');
+                joystickContainer.style.bottom = '40px'; joystickContainer.style.top = 'auto'; // UI por defecto
+                renderer.setSize(width, height);
+                camera.aspect = width / height;
+            }
+            camera.updateProjectionMatrix();
+        }
+
+        // --- LÓGICA DE CONTROLES (CORREGIDA Y LIMITADA) ---
+        let lastLookX, lastLookY;
+
+        // Disparo por Raycast (Toque en BANG)
+        document.getElementById('shoot-btn').addEventListener('touchstart', (e) => {
+            e.stopPropagation();
+            if(!isGameStarted) return;
+
+            const raycaster = new THREE.Raycaster();
+            raycaster.setFromCamera(new THREE.Vector2(0,0), camera); // Apuntar al centro (0,0)
+            
+            const intersects = raycaster.intersectObjects(enemies);
+            if (intersects.length > 0) {
+                const target = intersects[0].object;
+                scene.remove(target);
+                enemies.splice(enemies.indexOf(target), 1);
+            }
+        });
+
+        // Movimiento y Cámara (Toques en pantalla)
+        window.addEventListener('touchmove', (e) => {
+            e.preventDefault();
+            if(!isGameStarted) return;
+
+            const width = isForcedLandscape ? window.innerHeight : window.innerWidth;
+            const height = isForcedLandscape ? window.innerWidth : window.innerHeight;
+
+            for (let t of e.touches) {
+                // Ajustar coordenadas si la vista está forzada (CSS Rotado)
+                let clientX = isForcedLandscape ? t.clientY : t.clientX;
+                let clientY = isForcedLandscape ? (window.innerHeight - t.clientX) : t.clientY;
+
+                // --- LADO IZQUIERDO: JOYSTICK (MOVIMIENTO CORRECTO) ---
+                if (clientX < width / 2) {
+                    const rect = joystickContainer.getBoundingClientRect();
+                    const jCenterX = rect.left + rect.width / 2;
+                    const jCenterY = rect.top + rect.height / 2;
+
+                    // Ajustar centros si está rotado
+                    const finalCenterX = isForcedLandscape ? jCenterY : jCenterX;
+                    const finalCenterY = isForcedLandscape ? (window.innerHeight - jCenterX) : jCenterY;
+                    
+                    let dx = clientX - finalCenterX;
+                    let dy = clientY - finalCenterY;
+                    
+                    const dist = Math.min(Math.sqrt(dx*dx + dy*dy), 50); // Límite visual 50px
+                    const angle = Math.atan2(dy, dx);
+                    
+                    // Velocidad de movimiento (Normalizada -1 a 1)
+                    moveVec.x = Math.cos(angle) * (dist / 50);
+                    moveVec.y = Math.sin(angle) * (dist / 50); // dy negativo es hacia arriba
+                    
+                    // Actualizar Knob visualmente
+                    joystickKnob.style.transform = `translate(${Math.cos(angle)*dist}px, ${Math.sin(angle)*dist}px)`;
+                } 
+                // --- LADO DERECHO: CÁMARA (LIMITADA) ---
+                else {
+                    if (lastLookX) {
+                        const deltaX = clientX - lastLookX;
+                        const deltaY = clientY - lastLookY;
+
+                        // Aplicar rotación a Euler (Yaw y Pitch separados)
+                        euler.y -= deltaX * lookSensitivity; // Izquierda/Derecha
+                        euler.x -= deltaY * lookSensitivity; // Arriba/Abajo
+
+                        // ** LÍMITES DE CÁMARA **
+                        euler.x = Math.max(minPolarAngle - Math.PI/2, Math.min(maxPolarAngle - Math.PI/2, euler.x)); // Arriba/Abajo limitado
+                        euler.y = Math.max(-maxYawAngle, Math.min(maxYawAngle, euler.y)); // Lados limitado
+
+                        // Aplicar Euler corregido a la cámara
+                        camera.quaternion.setFromEuler(euler);
+                    }
+                    lastLookX = clientX;
+                    lastLookY = clientY;
+                }
+            }
+        }, {passive: false});
+
+        window.addEventListener('touchend', () => {
+            // Resetear joystick al soltar
+            moveVec = { x: 0, y: 0 };
+            lastLookX = null; lastLookY = null;
+            joystickKnob.style.transform = `translate(0px, 0px)`;
+        });
+
+        // --- BUCLE PRINCIPAL (GAME LOOP) ---
+        function animate() {
+            requestAnimationFrame(animate);
+
+            if(isGameStarted) {
+                // 1. Animación de entrada (bajar cámara suavemente)
+                if(camera.position.y > 1.8) {
+                    camera.position.y -= (camera.position.y - 1.8) * 0.1;
+                }
+
+                // 2. Movimiento (Corregido para forward/backward)
+                // Usamos moveVec.y para Z y moveVec.x para X
+                // moveVec.y normalizado (-1 arriba, 1 abajo). Threejs -Z es forward.
+                camera.translateZ(moveVec.y * 0.2); 
+                camera.translateX(moveVec.x * 0.2);
+            }
+
+            renderer.render(scene, camera);
+        }
+        
+        // Manejar Resize nativo
+        window.addEventListener('resize', () => {
+            if(isForcedLandscape) return; // Si está forzado, ignorar resize nativo
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+
+        animate();
+    </script>
+</body>
+</html>
             }
             camera.updateProjectionMatrix();
         }
